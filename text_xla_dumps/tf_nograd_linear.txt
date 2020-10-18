@@ -1,0 +1,26 @@
+HloModule a_inference_loss_nograd_15__XlaMustCompile_true_config_proto___n_007_n_003CPU_020_001_n_007_n_003GPU_020_0012_005__0010J_0008_001_202_001_000__executor_type____.15
+
+%scalar_add_computation (scalar_lhs: f32[], scalar_rhs: f32[]) -> f32[] {
+  %scalar_lhs = f32[] parameter(0)
+  %scalar_rhs = f32[] parameter(1)
+  ROOT %add = f32[] add(f32[] %scalar_lhs, f32[] %scalar_rhs)
+}
+
+%fused_computation (param_0.1: f32[5], param_1.2: f32[5,5], param_2.2: f32[5]) -> f32[5] {
+  %param_1.2 = f32[5,5]{1,0} parameter(1)
+  %param_2.2 = f32[5]{0} parameter(2)
+  %broadcast.1 = f32[5,5]{1,0} broadcast(f32[5]{0} %param_2.2), dimensions={1}
+  %multiply.1 = f32[5,5]{1,0} multiply(f32[5,5]{1,0} %param_1.2, f32[5,5]{1,0} %broadcast.1)
+  %constant_1 = f32[] constant(0)
+  %reduce.1 = f32[5]{0} reduce(f32[5,5]{1,0} %multiply.1, f32[] %constant_1), dimensions={1}, to_apply=%scalar_add_computation, metadata={op_type="Squeeze" op_name="MatVec/Squeeze"}
+  %param_0.1 = f32[5]{0} parameter(0)
+  ROOT %add.1 = f32[5]{0} add(f32[5]{0} %reduce.1, f32[5]{0} %param_0.1), metadata={op_type="AddV2" op_name="add"}
+}
+
+ENTRY %a_inference_loss_nograd_15__XlaMustCompile_true_config_proto___n_007_n_003CPU_020_001_n_007_n_003GPU_020_0012_005__0010J_0008_001_202_001_000__executor_type____.15 (arg0.1: f32[5,5], arg1.2: f32[5], arg2.3: f32[5]) -> f32[5] {
+  %arg2.3 = f32[5]{0} parameter(2), parameter_replication={false}, metadata={op_name="XLA_Args"}
+  %arg0.1 = f32[5,5]{1,0} parameter(0), parameter_replication={false}, metadata={op_name="XLA_Args"}
+  %arg1.2 = f32[5]{0} parameter(1), parameter_replication={false}, metadata={op_name="XLA_Args"}
+  ROOT %fusion = f32[5]{0} fusion(f32[5]{0} %arg2.3, f32[5,5]{1,0} %arg0.1, f32[5]{0} %arg1.2), kind=kLoop, calls=%fused_computation, metadata={op_type="AddV2" op_name="add"}
+}
+
