@@ -55,12 +55,10 @@ This repository is an implementation of our paper [Enabling Fast Differentially 
 If you use our code or paper, we ask that you please cite:
 
 ```
-@misc{subramani2020enabling,
-    title={Enabling Fast Differentially Private SGD via Just-in-Time Compilation and Vectorization}, 
-    author={Pranav Subramani and Nicholas Vadivelu and Gautam Kamath},
-    year={2020},
-    eprint={2010.09063},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
+@article{SubramaniVK20,
+  title         = {Enabling Fast Differentially Private SGD via Just-in-Time Compilation and Vectorization},
+  author        = {Subramani, Pranav and Vadivelu, Nicholas and Kamath, Gautam},
+  journal       = {arXiv preprint arXiv:2010.09063},
+  year          = {2020}
 }
 ```
