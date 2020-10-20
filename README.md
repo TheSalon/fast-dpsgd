@@ -1,4 +1,4 @@
-# Enabling Fast Differentially Private SGD via Static Graph Compilation and Batch-Level Parallelism
+# Enabling Fast Differentially Private SGD via Just-in-Time Compilation and Vectorization
 
 The results were obtained on a Titan V GPU on Ubuntu 18.04, CUDA 11.0, and Python 3.8.5. The code will run on CUDA 10.2+ and Python 3.6+. We advise creating a fresh `pip` environment then installing the requirements, as follows:
 
@@ -47,3 +47,20 @@ def matvecprod(W, x, b):
 The equivalent TensorFlow variant is expressed as well. These files are: `jax_nograd_linear.txt` and `tf_nograd_linear.txt`. Then the gradients are taken with respect to `W` and `b` of a mean-squared-error loss. These files are `jax_linear.txt` and `tf_linear.txt`. In this file we notice differences in the XLA dump produced by the two frameworks. In this setting JAX is faster by a small margin compared to TensorFlow 2 + XLA.
 
 The dumps for the fully connected network are placed in a file titled `dumps.zip`. According to the TensorFlow documentation, one module is generated for each compiled cluster. These logs are quite verbose, but at the bottom of the final module generated there is a function titled "Entry" which represents the entry point to the program. From there, a reader can trace the called functions and notice immediate differences. An example of such a difference is that JAX has a different number of fused kernels compared to TensorFlow.
+
+## Reference
+
+This repository is an implementation of our paper [Enabling Fast Differentially Private SGD via Just-in-Time Compilation and Vectorization](https://arxiv.org/abs/2010.09063), authored by [Pranav Subramani](https://pranavsubramani.github.io/), [Nicholas Vadivelu](https://nicholasvadivelu.com/), and [Gautam Kamath](http://www.gautamkamath.com/). Code contributed by Pranav Subramani and Nicholas Vadivelu.
+
+If you use our code or paper, we ask that you please cite:
+
+```
+@misc{subramani2020enabling,
+    title={Enabling Fast Differentially Private SGD via Just-in-Time Compilation and Vectorization}, 
+    author={Pranav Subramani and Nicholas Vadivelu and Gautam Kamath},
+    year={2020},
+    eprint={2010.09063},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG}
+}
+```
