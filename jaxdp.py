@@ -22,6 +22,8 @@ import data
 import utils
 
 
+
+
 def logistic_model(features, **_):
     return hk.Sequential([hk.Linear(1), jax.nn.sigmoid])(features)
 
@@ -132,9 +134,10 @@ def logistic_loss(model, params, batch):
 
 def accuracy(model, params, batch):
     inputs, targets = batch
-    target_class = jnp.argmax(targets, axis=1)
+    # uncomment the line below if your targets are 1-hot
+    # target_class = jnp.argmax(targets, axis=1)
     predicted_class = jnp.argmax(model.apply(params, None, inputs), axis=1)
-    return jnp.mean(predicted_class == target_class)
+    return jnp.sum(predicted_class == targets)
 
 
 def clipped_grad(model, loss, params, l2_norm_clip, single_example_batch):
@@ -209,13 +212,10 @@ def main(args):
     }
     if args.dummy_data:
         kwargs['num_examples'] = args.batch_size * 2
-    (train_data, train_labels), _ = data_fn(**kwargs)
+    (train_data, train_labels), (test_data, test_labels) = data_fn(**kwargs)
     # train_labels, test_labels = to_categorical(train_labels), to_categorical(
     #     test_labels)
 
-    num_train = train_data.shape[0]
-    num_complete_batches, leftover = divmod(num_train, args.batch_size)
-    num_batches = num_complete_batches + bool(leftover)
     key = random.PRNGKey(args.seed)
 
     model = hk.transform(
@@ -271,6 +271,13 @@ def main(args):
                 opt_state,
                 batch,
             )
+
+        params = get_params(opt_state)
+        acc = 0
+        for i, batch in enumerate(data.dataloader(test_data, test_labels, args.batch_size)):
+            acc += accuracy( model, params, batch)
+        print("Accuracy: ", acc / test_data.shape[0])
+
         (dummy * dummy).block_until_ready()  # synchronize CUDA.
         duration = time.perf_counter() - start
         print("Time Taken: ", duration)
