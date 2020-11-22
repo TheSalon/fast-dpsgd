@@ -22,8 +22,6 @@ import data
 import utils
 
 
-
-
 def logistic_model(features, **_):
     return hk.Sequential([hk.Linear(1), jax.nn.sigmoid])(features)
 
@@ -223,7 +221,6 @@ def main(args):
                 args=args,
                 vocab_size=args.max_features,
                 seq_len=args.max_len))
-    rng = jax.random.PRNGKey(42)
     init_params = model.init(key, train_data[:args.batch_size])
     opt_init, opt_update, get_params = optimizers.sgd(args.learning_rate)
     loss = logistic_loss if args.experiment == 'logreg' else multiclass_loss
