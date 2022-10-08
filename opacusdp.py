@@ -5,8 +5,10 @@ import time
 
 import torch
 import torch.nn.functional as F
-from opacus import PrivacyEngine
+from opacus import GradSampleModule
+from opacus.accountants import RDPAccountant
 from opacus.layers import DPLSTM
+from opacus.optimizers import DPOptimizer
 from torch import nn, optim
 
 import data
@@ -14,22 +16,21 @@ import utils
 from pytorch import get_data, model_dict
 
 
+# Same model as for PyTorch, with DPLSTM replacing nn.LSTM
 class LSTMNet(nn.Module):
-    def __init__(self, vocab_size: int, batch_size):
+    def __init__(self, vocab_size: int, **_):
         super().__init__()
         # Embedding dimension: vocab_size + <unk>, <pad>, <eos>, <sos>
         self.emb = nn.Embedding(vocab_size + 4, 100)
-        self.h_init = torch.randn(1, batch_size, 100).cuda()
-        self.c_init = torch.randn(1, batch_size, 100).cuda()
-        self.hidden = (self.h_init, self.c_init)
-        self.lstm = DPLSTM(100, 100, batch_first=True)
+        self.lstm = DPLSTM(100, 100)
         self.fc1 = nn.Linear(100, 2)
 
     def forward(self, x):
+        # x: batch_size, seq_len
         x = self.emb(x)  # batch_size, seq_len, embed_dim
-        # x has to be of shape [batch_size, seq_len, input_dim]
-        x, _ = self.lstm(x, self.hidden)  # batch_size, seq_len, lstm_dim
-        x = x.mean(1)  # batch_size, lstm_dim
+        x = x.transpose(0, 1)  # seq_len, batch_size, embed_dim
+        x, _ = self.lstm(x)  # seq_len, batch_size, lstm_dim
+        x = x.mean(0)  # batch_size, lstm_dim
         x = self.fc1(x)  # batch_size, fc_dim
         return x
 
@@ -47,15 +48,26 @@ def main(args):
     optimizer = optim.SGD(model.parameters(), lr=args.learning_rate, momentum=0)
     loss_function = nn.CrossEntropyLoss() if args.experiment != 'logreg' else nn.BCELoss()
 
-    privacy_engine = PrivacyEngine(
-        model,
-        batch_size=args.batch_size,
-        sample_size=len(train_data),
-        alphas=[1 + x / 10.0 for x in range(1, 100)] + list(range(12, 64)),
+    # Initialize the privacy accountant
+    accountant = RDPAccountant()
+
+    # Wrap the model to support per-sample gradients
+    model = GradSampleModule(model)
+
+    # Wrap the optimizer to support noise and clipping
+    optimizer = DPOptimizer(
+        optimizer=optimizer,
         noise_multiplier=args.sigma,
         max_grad_norm=args.max_per_sample_grad_norm,
+        expected_batch_size=args.batch_size
     )
-    privacy_engine.attach(optimizer)
+
+    # Attach the accountant to track privacy for the optimizer
+    optimizer.attach_step_hook(
+        accountant.get_optimizer_hook_fn(
+            sample_rate=args.batch_size/len(train_labels)
+        )
+    )
 
     timings = []
     for epoch in range(1, args.epochs + 1):
@@ -63,7 +75,7 @@ def main(args):
         dataloader = data.dataloader(train_data, train_labels, args.batch_size)
         for batch_idx, (x, y) in enumerate(dataloader):
             x, y = x.cuda(non_blocking=True), y.cuda(non_blocking=True)
-            model.zero_grad()
+            optimizer.zero_grad()
             outputs = model(x)
             loss = loss_function(outputs, y)
             loss.backward()
@@ -73,13 +85,9 @@ def main(args):
         print("Time Taken for Epoch: ", duration)
         timings.append(duration)
 
-        if args.dpsgd:
-            epsilon, best_alpha = optimizer.privacy_engine.get_privacy_spent(args.delta)
-            print(f"Train Epoch: {epoch} \t"
-                  # f"Loss: {np.mean(losses):.6f} "
-                  f"(ε = {epsilon:.2f}, δ = {args.delta}) for α = {best_alpha}")
-        else:
-            print(f"Train Epoch: {epoch} \t Loss: {np.mean(losses):.6f}")
+        epsilon = accountant.get_epsilon(args.delta)
+        print(f"Train Epoch: {epoch} \t"
+              f"(ε = {epsilon:.2f}, δ = {args.delta})")
 
     if not args.no_save:
         utils.save_runtimes(__file__.split('.')[0], args, timings)
